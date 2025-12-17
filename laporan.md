@@ -118,6 +118,10 @@ Teorema CAP menyatakan bahwa dalam sistem terdistribusi modern hanya dua dari ti
 | AP | Tersedia dan tahan partisi, mengorbankan konsistensi | Cassandra, DynamoDB |
 | CA | Konsisten dan tersedia, tidak tahan partisi | RDBMS Tradisional |
 
+**Gambar 2.1 Visualisasi Teorema CAP**
+
+![Gambar 2.1 Visualisasi Teorema CAP](diagrams/gambar_2_1_cap_theorem.png)
+
 Teorema CAP mengatakan kita hanya bisa memilih maksimal dua sifat tersebut saat merancang sistem terdistribusi. Pada proyek ini, arsitektur sharding dengan Apache ShardingSphere cenderung mengadopsi model CP dimana konsistensi data dijaga melalui mekanisme routing yang deterministik.
 
 ## Basis Data Terdistribusi
@@ -252,26 +256,7 @@ Pada perancangan logical, skema konseptual ditransformasikan ke dalam empat tabe
 
 **Gambar 3.1 Entity Relationship Diagram (ERD)**
 
-```
-┌─────────────┐       ┌──────────────────┐       ┌─────────────┐
-│    USER     │       │   ROOM_MEMBER    │       │    ROOM     │
-├─────────────┤       ├──────────────────┤       ├─────────────┤
-│ id (PK)     │◄──────│ user_id (FK)     │       │ id (PK)     │
-│ username    │       │ room_id (FK)     │──────►│ codename    │
-│ created_at  │       └──────────────────┘       │ type        │
-└─────────────┘                                  │ created_at  │
-      ▲                                          └─────────────┘
-      │                                                 ▲
-      │         ┌─────────────────┐                     │
-      │         │    MESSAGE      │                     │
-      │         ├─────────────────┤                     │
-      └─────────│ sender_id (FK)  │                     │
-                │ room_id (FK)    │─────────────────────┘
-                │ id (PK)         │
-                │ content         │
-                │ created_at      │
-                └─────────────────┘
-```
+![Gambar 3.1 Entity Relationship Diagram (ERD)](diagrams/gambar_3_1_erd.png)
 
 Entity Relationship Diagram (ERD) sistem aplikasi chat menggambarkan hubungan antar entitas dalam basis data. Entitas User terhubung dengan entitas Room melalui entitas asosiatif RoomMember dalam relasi many-to-many, dimana satu pengguna dapat bergabung ke banyak room dan satu room dapat memiliki banyak anggota. Entitas Message terhubung dengan entitas Room dalam relasi many-to-one (satu room memiliki banyak pesan) dan terhubung dengan entitas User dalam relasi many-to-one melalui atribut sender_id (satu pengguna dapat mengirim banyak pesan). Primary key pada setiap entitas menggunakan tipe BIGINT untuk mengakomodasi pertumbuhan data dalam skala besar pada arsitektur terdistribusi.
 
@@ -280,36 +265,7 @@ Entity Relationship Diagram (ERD) sistem aplikasi chat menggambarkan hubungan an
 
 **Gambar 3.2 Arsitektur Fisik Sistem Terdistribusi**
 
-```
-                              ┌─────────────────────┐
-                              │   Flask Application │
-                              │     (Port 5001)     │
-                              └──────────┬──────────┘
-                                         │
-                                         ▼
-                              ┌─────────────────────┐
-                              │   ShardingSphere    │
-                              │       Proxy         │
-                              │    (Port 3307)      │
-                              └──────────┬──────────┘
-                                         │
-            ┌────────────────────────────┼────────────────────────────┐
-            │                            │                            │
-            ▼                            ▼                            ▼
-┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-│   PostgreSQL ds_0   │    │   PostgreSQL ds_1   │    │   PostgreSQL ds_2   │
-│  (Primary Shard)    │    │      (Shard 1)      │    │      (Shard 2)      │
-│  - users            │    │  - messages         │    │  - messages         │
-│  - rooms            │    │    (room_id%4=1)    │    │    (room_id%4=2)    │
-│  - room_members     │    └─────────────────────┘    └─────────────────────┘
-│  - messages         │
-│    (room_id%4=0)    │    ┌─────────────────────┐
-└─────────────────────┘    │   PostgreSQL ds_3   │
-                           │      (Shard 3)      │
-                           │  - messages         │
-                           │    (room_id%4=3)    │
-                           └─────────────────────┘
-```
+![Gambar 3.2 Arsitektur Fisik Sistem Terdistribusi](diagrams/gambar_3_2_arsitektur.png)
 
 Arsitektur fisik sistem basis data terdistribusi pada proyek ini mengadopsi model middleware dengan Apache ShardingSphere Proxy sebagai komponen sentral yang mengelola distribusi data ke beberapa node database PostgreSQL. Arsitektur ini terdiri dari tiga lapisan utama, yaitu lapisan aplikasi (Flask application), lapisan middleware (ShardingSphere Proxy), dan lapisan penyimpanan data (PostgreSQL shards). Seluruh komponen dijalankan dalam lingkungan container Docker yang terhubung melalui jaringan virtual internal, sehingga memudahkan pengelolaan dan isolasi antar komponen.
 
@@ -348,31 +304,7 @@ Tabel referensi (users, rooms, room_members) tidak difragmentasi dan disimpan se
 
 **Gambar 3.3 Alur Routing Query pada ShardingSphere**
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         APLIKASI FLASK                                  │
-│                    INSERT INTO messages (room_id=5, ...)                │
-└────────────────────────────────┬────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      SHARDINGSPHERE PROXY                               │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐         │
-│  │  1. Parse SQL   │─►│ 2. Extract Key  │─►│ 3. Calculate    │         │
-│  │                 │  │   (room_id=5)   │  │   5 % 4 = 1     │         │
-│  └─────────────────┘  └─────────────────┘  └────────┬────────┘         │
-│                                                      │                  │
-│                                         ┌────────────▼────────────┐     │
-│                                         │ 4. Route to ds_1        │     │
-│                                         └────────────┬────────────┘     │
-└──────────────────────────────────────────────────────┼──────────────────┘
-                                                       │
-                                                       ▼
-                                          ┌─────────────────────┐
-                                          │   PostgreSQL ds_1   │
-                                          │   INSERT executed   │
-                                          └─────────────────────┘
-```
+![Gambar 3.3 Alur Routing Query pada ShardingSphere](diagrams/gambar_3_3_query_routing.png)
 
 Perancangan query pada sistem basis data terdistribusi dengan sharding memerlukan pemahaman tentang bagaimana query diproses dan diarahkan ke shard yang tepat. Apache ShardingSphere menyediakan mekanisme routing query secara transparan, dimana aplikasi dapat mengirimkan query SQL standar dan middleware akan menangani proses distribusi ke shard tujuan. Algoritma routing yang digunakan bergantung pada keberadaan sharding key dalam query dan jenis operasi yang dilakukan.
 
@@ -487,7 +419,15 @@ Hasil pengujian kinerja menunjukkan perbedaan signifikan antara kedua arsitektur
 
 **Gambar 4.1 Grafik Perbandingan Kinerja**
 
-*Lihat file: test/performance_comparison.png*
+![Gambar 4.1 Hasil Pengujian Kinerja Database Sharding](diagrams/gambar_4_1_performance.png)
+
+**Gambar 4.2 Distribusi Data pada Arsitektur Sharding**
+
+![Gambar 4.2 Distribusi Data pada Arsitektur Sharding](diagrams/gambar_4_2_distribution.png)
+
+**Gambar 4.3 Perbandingan Total Durasi Pengujian**
+
+![Gambar 4.3 Perbandingan Total Durasi Pengujian](diagrams/gambar_4_3_duration.png)
 
 
 ## Analisis hasil implementasi
