@@ -1,0 +1,48 @@
+services:
+  # PostgreSQL Database - Limited resources for testing
+  db:
+    image: postgres:17
+    container_name: chat_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dio
+      POSTGRES_DB: chat_mono
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../database.sql:/docker-entrypoint-initdb.d/00-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chat_mono"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Resource limits: 1 CPU core, 100MB RAM
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 100M
+    restart: unless-stopped
+
+  # Flask Web Application (Ubuntu-based) - Unlimited resources
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chat_web
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: chat_mono
+      DB_USER: postgres
+      DB_PASSWORD: dio
+      SECRET_KEY: super-secret-key-for-production
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    # No resource limits - unlimited
+    restart: unless-stopped
+
+volumes:
+  pgdata:

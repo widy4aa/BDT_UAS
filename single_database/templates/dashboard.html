@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Chat App{% endblock %}
+
+{% block content %}
+<nav class="navbar">
+    <div class="navbar-brand">💬 Chat App</div>
+    <div class="navbar-user">
+        <span>👤 {{ user.username }}</span>
+        <a href="/logout" class="btn btn-secondary">Logout</a>
+    </div>
+</nav>
+
+<div class="container" style="margin-top: 30px;">
+    <div id="alert" class="alert hidden"></div>
+    
+    <div class="card" style="margin-bottom: 20px;">
+        <h2 style="margin-bottom: 20px;">Room Actions</h2>
+        
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <!-- Create Room -->
+            <div style="flex: 1; min-width: 250px;">
+                <h3 style="margin-bottom: 15px; color: #667eea;">Create New Room</h3>
+                <div class="form-group">
+                    <label>Room Type</label>
+                    <select id="room-type" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                        <option value="group">Group</option>
+                        <option value="dm">DM (2 people only)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="createRoom()">Create Room</button>
+            </div>
+            
+            <!-- Join Room -->
+            <div style="flex: 1; min-width: 250px;">
+                <h3 style="margin-bottom: 15px; color: #667eea;">Join Existing Room</h3>
+                <div class="form-group">
+                    <label>Room Code</label>
+                    <input type="text" id="room-code" placeholder="Enter Room Code (e.g. AB12CD34)" maxlength="8" style="text-transform: uppercase;">
+                </div>
+                <button class="btn btn-primary" onclick="joinRoom()">Join Room</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- My Rooms -->
+    <div class="card">
+        <h2 style="margin-bottom: 20px;">My Rooms</h2>
+        
+        {% if rooms %}
+        <div id="rooms-list" style="display: grid; gap: 15px;">
+            {% for room in rooms %}
+            <div class="room-item" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <div>
+                    <strong style="font-size: 16px;">{{ room.codename }}</strong>
+                    <span style="background: {% if room.type == 'dm' %}#e74c3c{% else %}#27ae60{% endif %}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px; margin-left: 10px;">
+                        {{ room.type|upper }}
+                    </span>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <a href="/room/{{ room.id }}" class="btn btn-primary">Enter</a>
+                    <button class="btn btn-danger" onclick="leaveRoom({{ room.id }})">Leave</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: #666; text-align: center; padding: 30px;">No rooms yet. Create or join a room to start chatting!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showAlert(message, type) {
+        const alert = document.getElementById('alert');
+        alert.textContent = message;
+        alert.className = 'alert alert-' + type;
+        alert.classList.remove('hidden');
+        setTimeout(() => alert.classList.add('hidden'), 3000);
+    }
+    
+    async function createRoom() {
+        const type = document.getElementById('room-type').value;
+        
+        try {
+            const response = await fetch('/api/rooms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showAlert(`Room created! Code: ${data.data.codename}`, 'success');
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showAlert(data.message, 'error');
+            }
+        } catch (error) {
+            showAlert('Connection error', 'error');
+        }
+    }
+    
+    async function joinRoom() {
+        const codename = document.getElementById('room-code').value.trim().toUpperCase();
+        if (!codename) {
+            showAlert('Please enter Room Code', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/rooms/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ codename })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showAlert('Joined room successfully!', 'success');
+                setTimeout(() => window.location.href = `/room/${data.data.room_id}`, 1000);
+            } else {
+                showAlert(data.message, 'error');
+            }
+        } catch (error) {
+            showAlert('Connection error', 'error');
+        }
+    }
+    
+    async function leaveRoom(roomId) {
+        if (!confirm('Are you sure you want to leave this room?')) return;
+        
+        try {
+            const response = await fetch(`/api/rooms/${roomId}/leave`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                showAlert('Left room successfully', 'success');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showAlert(data.message, 'error');
+            }
+        } catch (error) {
+            showAlert('Connection error', 'error');
+        }
+    }
+    
+    // Enter key for join room
+    document.getElementById('room-code').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') joinRoom();
+    });
+</script>
+{% endblock %}

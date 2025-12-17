@@ -1,0 +1,26 @@
+mode:
+  type: Standalone
+  repository:
+    type: JDBC
+
+authority:
+  users:
+    - user: root@%
+      password: root
+    - user: chatuser@%
+      password: chatpass
+  privilege:
+    type: ALL_PERMITTED
+
+props:
+  max-connections-size-per-query: 1
+  kernel-executor-size: 16
+  proxy-frontend-flush-threshold: 128
+  sql-show: true
+  check-table-metadata-enabled: false
+  proxy-backend-query-fetch-size: -1
+  proxy-frontend-executor-size: 0
+  proxy-backend-executor-suitable: OLAP
+  proxy-frontend-max-connections: 0
+  proxy-default-port: 3307
+  proxy-netty-backlog: 1024

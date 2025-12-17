@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Chat App - Login{% endblock %}
+
+{% block content %}
+<div class="container" style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+    <div class="card" style="width: 100%; max-width: 400px;">
+        <h1 style="text-align: center; color: #667eea; margin-bottom: 30px;">💬 Chat App</h1>
+        
+        <div id="alert" class="alert hidden"></div>
+        
+        <!-- Login Form -->
+        <div id="login-form">
+            <h2 style="margin-bottom: 20px;">Login</h2>
+            <div class="form-group">
+                <label for="login-username">Username</label>
+                <input type="text" id="login-username" placeholder="Enter your username">
+            </div>
+            <button class="btn btn-primary" style="width: 100%;" onclick="login()">Login</button>
+            <p style="text-align: center; margin-top: 20px; color: #666;">
+                Don't have an account? 
+                <a href="#" onclick="showRegister()" style="color: #667eea;">Register</a>
+            </p>
+        </div>
+        
+        <!-- Register Form -->
+        <div id="register-form" class="hidden">
+            <h2 style="margin-bottom: 20px;">Register</h2>
+            <div class="form-group">
+                <label for="register-username">Username</label>
+                <input type="text" id="register-username" placeholder="Choose a username">
+            </div>
+            <button class="btn btn-primary" style="width: 100%;" onclick="register()">Register</button>
+            <p style="text-align: center; margin-top: 20px; color: #666;">
+                Already have an account? 
+                <a href="#" onclick="showLogin()" style="color: #667eea;">Login</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showAlert(message, type) {
+        const alert = document.getElementById('alert');
+        alert.textContent = message;
+        alert.className = 'alert alert-' + type;
+        alert.classList.remove('hidden');
+        setTimeout(() => alert.classList.add('hidden'), 3000);
+    }
+    
+    function showLogin() {
+        document.getElementById('login-form').classList.remove('hidden');
+        document.getElementById('register-form').classList.add('hidden');
+    }
+    
+    function showRegister() {
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('register-form').classList.remove('hidden');
+    }
+    
+    async function login() {
+        const username = document.getElementById('login-username').value.trim();
+        if (!username) {
+            showAlert('Please enter username', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                window.location.href = '/dashboard';
+            } else {
+                showAlert(data.message, 'error');
+            }
+        } catch (error) {
+            showAlert('Connection error', 'error');
+        }
+    }
+    
+    async function register() {
+        const username = document.getElementById('register-username').value.trim();
+        if (!username) {
+            showAlert('Please enter username', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                window.location.href = '/dashboard';
+            } else {
+                showAlert(data.message, 'error');
+            }
+        } catch (error) {
+            showAlert('Connection error', 'error');
+        }
+    }
+    
+    // Enter key support
+    document.getElementById('login-username').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') login();
+    });
+    document.getElementById('register-username').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') register();
+    });
+</script>
+{% endblock %}

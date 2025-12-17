@@ -1,0 +1,38 @@
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+Table users {
+  id integer [primary key]
+  username varchar
+  created_at timestamp
+}
+
+Table rooms {
+  id integer [primary key]
+  type varchar [note: 'dm or group']
+  created_at timestamp
+}
+
+Table room_members {
+  room_id integer [not null]
+  user_id integer [not null]
+
+  indexes {
+    (room_id, user_id) [unique]
+  }
+}
+
+Table messages {
+  id integer [primary key]
+  room_id integer [not null]
+  sender_id integer [not null]
+  content text
+  created_at timestamp
+}
+
+// Relationships
+Ref: room_members.user_id > users.id
+Ref: room_members.room_id > rooms.id
+
+Ref: messages.room_id > rooms.id
+Ref: messages.sender_id > users.id

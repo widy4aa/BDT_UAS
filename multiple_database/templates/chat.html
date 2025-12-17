@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block title %}{{ room.codename }} - Chat App{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px);
+    }
+    .chat-header {
+        background: white;
+        padding: 15px 20px;
+        border-bottom: 1px solid #e0e0e0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: #f0f2f5;
+    }
+    .message {
+        max-width: 70%;
+        margin-bottom: 15px;
+        padding: 12px 16px;
+        border-radius: 18px;
+        position: relative;
+    }
+    .message-other {
+        background: white;
+        margin-right: auto;
+        border-bottom-left-radius: 4px;
+    }
+    .message-self {
+        background: #667eea;
+        color: white;
+        margin-left: auto;
+        border-bottom-right-radius: 4px;
+    }
+    .message-sender {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #667eea;
+    }
+    .message-self .message-sender {
+        color: rgba(255,255,255,0.8);
+    }
+    .message-time {
+        font-size: 10px;
+        color: #999;
+        margin-top: 4px;
+    }
+    .message-self .message-time {
+        color: rgba(255,255,255,0.7);
+    }
+    .chat-input {
+        background: white;
+        padding: 15px 20px;
+        border-top: 1px solid #e0e0e0;
+        display: flex;
+        gap: 10px;
+    }
+    .chat-input input {
+        flex: 1;
+        padding: 12px 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 25px;
+        font-size: 14px;
+    }
+    .chat-input input:focus {
+        outline: none;
+        border-color: #667eea;
+    }
+    .members-sidebar {
+        position: fixed;
+        right: 0;
+        top: 60px;
+        width: 250px;
+        height: calc(100vh - 60px);
+        background: white;
+        border-left: 1px solid #e0e0e0;
+        padding: 20px;
+        transform: translateX(100%);
+        transition: transform 0.3s;
+    }
+    .members-sidebar.open {
+        transform: translateX(0);
+    }
+    .member-item {
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 5px;
+        background: #f8f9fa;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<nav class="navbar">
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <a href="/dashboard" class="btn btn-secondary">← Back</a>
+        <div class="navbar-brand">{{ room.codename }}</div>
+        <span style="background: {% if room.type == 'dm' %}#e74c3c{% else %}#27ae60{% endif %}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">
+            {{ room.type|upper }}
+        </span>
+    </div>
+    <div class="navbar-user">
+        <button class="btn btn-secondary" onclick="toggleMembers()">👥 Members ({{ members|length }})</button>
+        <span>👤 {{ user.username }}</span>
+    </div>
+</nav>
+
+<div class="chat-container">
+    <div class="chat-messages" id="messages-container">
+        {% for msg in messages %}
+        <div class="message {% if msg.sender_id == user.id %}message-self{% else %}message-other{% endif %}">
+            <div class="message-sender">{{ msg.sender_name }}</div>
+            <div class="message-content">{{ msg.content }}</div>
+            <div class="message-time">{{ msg.created_at.strftime('%H:%M') }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="chat-input">
+        <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+        <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<!-- Members Sidebar -->
+<div class="members-sidebar" id="members-sidebar">
+    <h3 style="margin-bottom: 15px;">Members</h3>
+    {% for member in members %}
+    <div class="member-item">
+        👤 {{ member.username }}
+        {% if member.id == user.id %}
+        <span style="color: #667eea; font-size: 12px;">(you)</span>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const roomId = {{ room.id }};
+    const currentUserId = {{ user.id }};
+    let lastMessageId = 0;
+    
+    // Scroll to bottom on load
+    function scrollToBottom() {
+        const container = document.getElementById('messages-container');
+        container.scrollTop = container.scrollHeight;
+    }
+    scrollToBottom();
+    
+    // Toggle members sidebar
+    function toggleMembers() {
+        document.getElementById('members-sidebar').classList.toggle('open');
+    }
+    
+    // Send message
+    async function sendMessage() {
+        const input = document.getElementById('message-input');
+        const content = input.value.trim();
+        
+        if (!content) return;
+        
+        try {
+            const response = await fetch(`/api/rooms/${roomId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                input.value = '';
+                addMessage(data.data);
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+        }
+    }
+    
+    // Add message to UI
+    function addMessage(msg) {
+        const container = document.getElementById('messages-container');
+        const isSelf = msg.sender_id === currentUserId;
+        
+        const time = new Date(msg.created_at).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+        });
+        
+        const html = `
+            <div class="message ${isSelf ? 'message-self' : 'message-other'}">
+                <div class="message-sender">${msg.sender_name}</div>
+                <div class="message-content">${msg.content}</div>
+                <div class="message-time">${time}</div>
+            </div>
+        `;
+        
+        container.insertAdjacentHTML('beforeend', html);
+        scrollToBottom();
+        lastMessageId = msg.id;
+    }
+    
+    // Fetch new messages (polling)
+    async function fetchMessages() {
+        try {
+            const response = await fetch(`/api/rooms/${roomId}/messages`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const messages = data.data;
+                const newMessages = messages.filter(m => m.id > lastMessageId);
+                
+                newMessages.forEach(msg => {
+                    if (msg.sender_id !== currentUserId || lastMessageId === 0) {
+                        if (msg.id > lastMessageId) {
+                            addMessage(msg);
+                        }
+                    }
+                });
+                
+                if (messages.length > 0) {
+                    lastMessageId = Math.max(...messages.map(m => m.id));
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+        }
+    }
+    
+    // Initialize last message ID
+    const existingMessages = document.querySelectorAll('.message');
+    if (existingMessages.length > 0) {
+        // Get from server response
+        {% if messages %}
+        lastMessageId = {{ messages[-1].id if messages else 0 }};
+        {% endif %}
+    }
+    
+    // Poll for new messages every 2 seconds
+    setInterval(fetchMessages, 2000);
+    
+    // Enter key to send
+    document.getElementById('message-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+    
+    // Focus input on load
+    document.getElementById('message-input').focus();
+</script>
+{% endblock %}

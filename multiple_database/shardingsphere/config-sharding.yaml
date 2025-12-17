@@ -1,0 +1,62 @@
+databaseName: sharding_db
+
+dataSources:
+  ds_0:
+    url: jdbc:postgresql://postgres-shard-0:5432/chat_shard_0
+    username: chatuser
+    password: chatpass
+    connectionTimeoutMilliseconds: 30000
+    idleTimeoutMilliseconds: 60000
+    maxLifetimeMilliseconds: 1800000
+    maxPoolSize: 50
+    minPoolSize: 1
+  ds_1:
+    url: jdbc:postgresql://postgres-shard-1:5432/chat_shard_1
+    username: chatuser
+    password: chatpass
+    connectionTimeoutMilliseconds: 30000
+    idleTimeoutMilliseconds: 60000
+    maxLifetimeMilliseconds: 1800000
+    maxPoolSize: 50
+    minPoolSize: 1
+  ds_2:
+    url: jdbc:postgresql://postgres-shard-2:5432/chat_shard_2
+    username: chatuser
+    password: chatpass
+    connectionTimeoutMilliseconds: 30000
+    idleTimeoutMilliseconds: 60000
+    maxLifetimeMilliseconds: 1800000
+    maxPoolSize: 50
+    minPoolSize: 1
+  ds_3:
+    url: jdbc:postgresql://postgres-shard-3:5432/chat_shard_3
+    username: chatuser
+    password: chatpass
+    connectionTimeoutMilliseconds: 30000
+    idleTimeoutMilliseconds: 60000
+    maxLifetimeMilliseconds: 1800000
+    maxPoolSize: 50
+    minPoolSize: 1
+
+rules:
+- !SHARDING
+  tables:
+    messages:
+      actualDataNodes: ds_${0..3}.messages
+      databaseStrategy:
+        standard:
+          shardingColumn: room_id
+          shardingAlgorithmName: messages_inline
+    users:
+      actualDataNodes: ds_0.users
+    rooms:
+      actualDataNodes: ds_0.rooms
+    room_members:
+      actualDataNodes: ds_0.room_members
+
+  shardingAlgorithms:
+    messages_inline:
+      type: INLINE
+      props:
+        algorithm-expression: ds_${room_id % 4}
+
